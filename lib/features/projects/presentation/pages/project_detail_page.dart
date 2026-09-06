@@ -8,9 +8,8 @@ import 'package:video_player/video_player.dart';
 
 import '../../../../app/theme/app_theme.dart';
 import '../../domain/entities/project.dart';
-import '../../domain/usecases/analyze_project.dart'; // ✅ has AnalysisResult
+import '../../domain/usecases/analyze_project.dart'; // has AnalysisResult
 import '../cubit/project_cubit.dart';
-import '../../domain/entities/project.dart';
 
 class ProjectDetailPage extends StatelessWidget {
   final Project project;
@@ -57,6 +56,10 @@ class _ProjectDetailBodyState extends State<_ProjectDetailBody> {
   VideoPlayerController? _videoController;
   bool _isPlayerInitialized = false;
 
+  // ✅ Keeps the last analysis result around so it survives unrelated
+  // cubit state changes (e.g. after picking a new video or reloading).
+  AnalysisResult? _lastAnalysisResult;
+
   @override
   void initState() {
     super.initState();
@@ -86,7 +89,6 @@ class _ProjectDetailBodyState extends State<_ProjectDetailBody> {
 
       final filePath = result.files.single.path!;
 
-      // Extract duration
       Duration extractedDuration = Duration.zero;
       final tempController = VideoPlayerController.file(File(filePath));
       try {
@@ -109,15 +111,16 @@ class _ProjectDetailBodyState extends State<_ProjectDetailBody> {
         lastEdited: DateTime.now(),
       );
 
-      // Dispose old preview player before reassigning
       await _videoController?.dispose();
       _videoController = null;
       _isPlayerInitialized = false;
 
-      // Save through the cubit so app-wide state stays in sync
       if (mounted) {
         context.read<ProjectCubit>().updateProject(updatedProject);
-        setState(() => _project = updatedProject);
+        setState(() {
+          _project = updatedProject;
+          _lastAnalysisResult = null; // ✅ new video → old results are stale
+        });
         await _initVideoPlayer();
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -159,6 +162,13 @@ class _ProjectDetailBodyState extends State<_ProjectDetailBody> {
           if (match.isNotEmpty && mounted) {
             setState(() => _project = match.first);
           }
+        } else if (state is ProjectAnalysisComplete &&
+            state.project.id == _project.id) {
+          // ✅ capture the result so it doesn't vanish on the next state change
+          setState(() {
+            _project = state.project;
+            _lastAnalysisResult = state.result;
+          });
         }
       },
       child: SingleChildScrollView(
@@ -290,8 +300,7 @@ class _ProjectDetailBodyState extends State<_ProjectDetailBody> {
               backgroundColor: AppTheme.primary,
               foregroundColor: Colors.white,
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
+                  borderRadius: BorderRadius.circular(12)),
             ),
           ),
       ],
@@ -310,10 +319,8 @@ class _ProjectDetailBodyState extends State<_ProjectDetailBody> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'Project Info',
-            style: TextStyle(fontSize: 13, color: AppTheme.textMuted),
-          ),
+          const Text('Project Info',
+              style: TextStyle(fontSize: 13, color: AppTheme.textMuted)),
           const SizedBox(height: 12),
           _row('Created', _project.createdAt.toString().substring(0, 10)),
           const Divider(height: 16),
@@ -348,40 +355,31 @@ class _ProjectDetailBodyState extends State<_ProjectDetailBody> {
     return BlocBuilder<ProjectCubit, ProjectState>(
       builder: (context, state) {
         final isAnalyzing = state is ProjectAnalyzing;
-        final hasResults = state is ProjectAnalysisComplete;
 
-        return Column(
+        return Row(
           children: [
-            Row(
-              children: [
-                Expanded(
-                  child: ElevatedButton.icon(
-                    onPressed: _project.videoPath != null && !isAnalyzing
-                        ? () =>
-                            context.read<ProjectCubit>().startAnalysis(_project)
-                        : null,
-                    icon: isAnalyzing
-                        ? const SizedBox(
-                            width: 18,
-                            height: 18,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: Colors.white,
-                            ),
-                          )
-                        : const Icon(Icons.auto_awesome_rounded, size: 18),
-                    label: Text(isAnalyzing ? 'Analyzing...' : 'AI Analyze'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppTheme.primary,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                    ),
-                  ),
+            Expanded(
+              child: ElevatedButton.icon(
+                onPressed: _project.videoPath != null && !isAnalyzing
+                    ? () => context.read<ProjectCubit>().startAnalysis(_project)
+                    : null,
+                icon: isAnalyzing
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(
+                            strokeWidth: 2, color: Colors.white),
+                      )
+                    : const Icon(Icons.auto_awesome_rounded, size: 18),
+                label: Text(isAnalyzing ? 'Analyzing...' : 'AI Analyze'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppTheme.primary,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12)),
                 ),
-              ],
+              ),
             ),
           ],
         );
@@ -395,10 +393,13 @@ class _ProjectDetailBodyState extends State<_ProjectDetailBody> {
         if (state is ProjectAnalyzing) {
           return const _AnalysisLoadingView();
         }
-        if (state is ProjectAnalysisComplete && state.result != null) {
+        // ✅ use the cached result instead of only the live transient state,
+        // so results stay visible even after e.g. picking a new video
+        // triggers an unrelated ProjectLoaded emission.
+        if (_lastAnalysisResult != null) {
           return _AnalysisResultsView(
-            project: state.project,
-            result: state.result!,
+            project: _project,
+            result: _lastAnalysisResult!,
           );
         }
         return const SizedBox.shrink();
@@ -454,9 +455,8 @@ class _AnalysisResultsView extends StatelessWidget {
     required this.result,
   });
 
-  String _formatConfidence(double score) {
-    return '${(score * 100).toStringAsFixed(0)}% Viral Score';
-  }
+  String _formatConfidence(double score) =>
+      '${(score * 100).toStringAsFixed(0)}% Viral Score';
 
   String _formatTime(Duration d) {
     final mins = d.inMinutes.toString().padLeft(2, '0');
@@ -477,15 +477,12 @@ class _AnalysisResultsView extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Header
           Row(
             children: [
               const Icon(Icons.auto_awesome_rounded, color: AppTheme.success),
               const SizedBox(width: 8),
-              const Text(
-                '✅ Analysis Complete',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-              ),
+              const Text('✅ Analysis Complete',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
               const Spacer(),
               Container(
                 padding:
@@ -497,30 +494,25 @@ class _AnalysisResultsView extends StatelessWidget {
                 child: Text(
                   _formatConfidence(result.viralScore),
                   style: const TextStyle(
-                    color: AppTheme.success,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                  ),
+                      color: AppTheme.success,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600),
                 ),
               ),
             ],
           ),
           const SizedBox(height: 8),
-          Text(
-            result.summary,
-            style: const TextStyle(color: AppTheme.textSecondary, fontSize: 13),
-          ),
+          Text(result.summary,
+              style:
+                  const TextStyle(color: AppTheme.textSecondary, fontSize: 13)),
           const SizedBox(height: 16),
           const Divider(height: 1),
           const SizedBox(height: 16),
-
-          // Clip List
           ...result.clips.map((clip) => Padding(
                 padding: const EdgeInsets.only(bottom: 12),
                 child: ListTile(
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
+                      borderRadius: BorderRadius.circular(12)),
                   tileColor: AppTheme.background,
                   leading: CircleAvatar(
                     backgroundColor: AppTheme.primary.withOpacity(0.15),
@@ -529,10 +521,8 @@ class _AnalysisResultsView extends StatelessWidget {
                       style: const TextStyle(fontWeight: FontWeight.bold),
                     ),
                   ),
-                  title: Text(
-                    clip.title,
-                    style: const TextStyle(fontWeight: FontWeight.w500),
-                  ),
+                  title: Text(clip.title,
+                      style: const TextStyle(fontWeight: FontWeight.w500)),
                   subtitle: Text(
                     '${_formatTime(clip.startAt)} → ${_formatTime(clip.endAt)}',
                     style: const TextStyle(fontSize: 12),
@@ -540,10 +530,9 @@ class _AnalysisResultsView extends StatelessWidget {
                   trailing: Text(
                     '${(clip.confidence * 100).toStringAsFixed(0)}%',
                     style: const TextStyle(
-                      color: AppTheme.success,
-                      fontWeight: FontWeight.w600,
-                      fontSize: 12,
-                    ),
+                        color: AppTheme.success,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 12),
                   ),
                 ),
               )),

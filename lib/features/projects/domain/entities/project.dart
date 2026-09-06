@@ -1,124 +1,132 @@
 import 'package:equatable/equatable.dart';
 import 'package:uuid/uuid.dart';
-import 'package:hive/hive.dart';
+import 'viral_clip.dart';
 
-// YOUR ACTUAL ENUM
 enum ProjectStatus { editing, analyzing, ready, exporting }
 
-// 🎬 Detected Viral Clip
-class ViralClip extends Equatable {
-  final String id;
-  final Duration startAt;
-  final Duration endAt;
-  final String title;
-  final double confidence;
-
-  const ViralClip({
-    required this.id,
-    required this.startAt,
-    required this.endAt,
-    required this.title,
-    required this.confidence,
-  });
-
-  Map<String, dynamic> toMap() => {
-        'id': id,
-        'startAtSec': startAt.inSeconds,
-        'endAtSec': endAt.inSeconds,
-        'title': title,
-        'confidence': confidence,
-      };
-
-  factory ViralClip.fromMap(Map<String, dynamic> map) => ViralClip(
-        id: map['id'] as String,
-        startAt: Duration(seconds: map['startAtSec'] as int),
-        endAt: Duration(seconds: map['endAtSec'] as int),
-        title: map['title'] as String,
-        confidence: (map['confidence'] as num).toDouble(),
-      );
-
-  @override
-  List<Object?> get props => [id, startAt, endAt, title, confidence];
-}
-
-// 📊 Analysis Result
-class AnalysisResult {
-  final List<ViralClip> clips;
-  final String summary;
-  final double viralScore;
-
-  const AnalysisResult({
-    required this.clips,
-    required this.summary,
-    required this.viralScore,
-  });
-}
-
-@HiveType(typeId: 0)
 class Project extends Equatable {
-  @HiveField(0)
   final String id;
-
-  @HiveField(1)
   final String name;
-
-  @HiveField(2)
-  final DateTime createdAt;
-
-  @HiveField(3)
   final String? videoPath;
-
-  @HiveField(4)
   final Duration duration;
-
-  @HiveField(5)
-  final ProjectStatus status;
-
-  @HiveField(6)
+  final DateTime createdAt;
   final DateTime? lastEdited;
-
-  @HiveField(7)
+  final ProjectStatus status;
   final int clipsCount;
-
-  @HiveField(8)
-  final List<Map> clipsData;
+  final List<Map<String, dynamic>> clips;
+  final List<String> selectedClipIds; // ✅ new
+  final String? exportedVideoPath; // ✅ new
 
   const Project({
     required this.id,
     required this.name,
-    required this.createdAt,
     this.videoPath,
     this.duration = Duration.zero,
-    this.status = ProjectStatus.editing,
+    required this.createdAt,
     this.lastEdited,
+    this.status = ProjectStatus.editing,
     this.clipsCount = 0,
-    this.clipsData = const [],
+    this.clips = const [],
+    this.selectedClipIds = const [],
+    this.exportedVideoPath,
   });
 
-  // ✅ FIXED: Added videoPath parameter
   factory Project.create({required String name, String? videoPath}) {
     return Project(
       id: const Uuid().v4(),
       name: name,
-      createdAt: DateTime.now(),
       videoPath: videoPath,
+      createdAt: DateTime.now(),
+      status: ProjectStatus.editing,
     );
   }
 
-  // ✅ Helper: Get typed ViralClip list
-  List<ViralClip> get clips => clipsData
-      .map((m) => ViralClip.fromMap(Map<String, dynamic>.from(m)))
-      .toList();
+  Project copyWith({
+    String? name,
+    String? videoPath,
+    Duration? duration,
+    DateTime? lastEdited,
+    ProjectStatus? status,
+    int? clipsCount,
+    List<Map<String, dynamic>>? clips,
+    List<String>? selectedClipIds,
+    String? exportedVideoPath,
+  }) {
+    return Project(
+      id: id,
+      name: name ?? this.name,
+      videoPath: videoPath ?? this.videoPath,
+      duration: duration ?? this.duration,
+      createdAt: createdAt,
+      lastEdited: lastEdited ?? this.lastEdited,
+      status: status ?? this.status,
+      clipsCount: clipsCount ?? this.clipsCount,
+      clips: clips ?? this.clips,
+      selectedClipIds: selectedClipIds ?? this.selectedClipIds,
+      exportedVideoPath: exportedVideoPath ?? this.exportedVideoPath,
+    );
+  }
 
-  // ✅ FIXED: Added formattedDuration getter
+  // ✅ Typed access to stored clips
+  List<ViralClip> get viralClips =>
+      clips.map((m) => ViralClip.fromMap(m)).toList();
+
+  List<ViralClip> get selectedViralClips =>
+      viralClips.where((c) => selectedClipIds.contains(c.id)).toList();
+
+  bool isClipSelected(String clipId) => selectedClipIds.contains(clipId);
+
+  double get averageConfidence {
+    final vc = viralClips;
+    if (vc.isEmpty) return 0.0;
+    return vc.map((c) => c.confidence).reduce((a, b) => a + b) / vc.length;
+  }
+
+  Map<String, dynamic> toMap() {
+    return {
+      'id': id,
+      'name': name,
+      'videoPath': videoPath,
+      'durationSeconds': duration.inSeconds,
+      'createdAt': createdAt.toIso8601String(),
+      'lastEdited': lastEdited?.toIso8601String(),
+      'status': status.name,
+      'clipsCount': clipsCount,
+      'clips': clips,
+      'selectedClipIds': selectedClipIds,
+      'exportedVideoPath': exportedVideoPath,
+    };
+  }
+
+  factory Project.fromMap(Map<String, dynamic> map) {
+    return Project(
+      id: map['id'] as String,
+      name: map['name'] as String,
+      videoPath: map['videoPath'] as String?,
+      duration: Duration(seconds: map['durationSeconds'] as int? ?? 0),
+      createdAt: DateTime.parse(map['createdAt'] as String),
+      lastEdited: map['lastEdited'] != null
+          ? DateTime.parse(map['lastEdited'] as String)
+          : null,
+      status: ProjectStatus.values.firstWhere(
+        (s) => s.name == (map['status'] as String? ?? 'editing'),
+        orElse: () => ProjectStatus.editing,
+      ),
+      clipsCount: map['clipsCount'] as int? ?? 0,
+      clips: (map['clips'] as List? ?? [])
+          .map((e) => Map<String, dynamic>.from(e as Map))
+          .toList(),
+      selectedClipIds: (map['selectedClipIds'] as List? ?? []).cast<String>(),
+      exportedVideoPath: map['exportedVideoPath'] as String?,
+    );
+  }
+
   String get formattedDuration {
-    if (duration == Duration.zero) return '--:--';
-    final mins = duration.inMinutes.toString().padLeft(2, '0');
-    final secs = (duration.inSeconds % 60).toString().padLeft(2, '0');
+    final mins = duration.inMinutes;
+    final secs = duration.inSeconds.remainder(60).toString().padLeft(2, '0');
     return '$mins:$secs';
   }
 
-  // ✅ FIXED: Added relativeDate getter
   String get relativeDate {
     final diff = DateTime.now().difference(createdAt);
     if (diff.inMinutes < 1) return 'Just now';
@@ -132,12 +140,14 @@ class Project extends Equatable {
   List<Object?> get props => [
         id,
         name,
-        createdAt,
         videoPath,
         duration,
-        status,
+        createdAt,
         lastEdited,
+        status,
         clipsCount,
-        clipsData,
+        clips,
+        selectedClipIds,
+        exportedVideoPath,
       ];
 }

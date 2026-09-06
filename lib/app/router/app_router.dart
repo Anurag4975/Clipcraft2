@@ -6,6 +6,7 @@ import '../../features/projects/presentation/pages/project_detail_page.dart';
 import '../../features/projects/domain/entities/project.dart';
 import '../../features/projects/presentation/cubit/project_cubit.dart';
 import '../di/injection_container.dart';
+import '../../features/media_tools/presentation/pages/audio_extractor_page.dart';
 
 class AppRouter {
   static const String dashboard = 'dashboard';
@@ -53,6 +54,11 @@ final GoRouter appRouter = GoRouter(
       name: AppRouter.pricing,
       builder: (context, state) =>
           const Scaffold(body: Center(child: Text('Pricing — Coming Soon'))),
+    ),
+    GoRoute(
+      path: '/tools/audio-extractor',
+      name: 'audioExtractor',
+      builder: (context, state) => const AudioExtractorPage(),
     ),
   ],
 );

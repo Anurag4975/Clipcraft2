@@ -8,6 +8,7 @@ import '../../domain/usecases/save_project.dart';
 import '../../domain/usecases/delete_project.dart';
 import '../../domain/usecases/update_project.dart';
 import '../../domain/usecases/analyze_project.dart';
+import '../../domain/usecases/export_selected_clips.dart';
 
 part 'project_state.dart';
 
@@ -17,6 +18,7 @@ class ProjectCubit extends Cubit<ProjectState> {
   final DeleteProject _deleteProject;
   final UpdateProject _updateProjectUseCase;
   final AnalyzeProject _analyzeProject;
+  final ExportSelectedClips _exportSelectedClips;
 
   ProjectCubit({
     required GetAllProjects getAllProjects,
@@ -24,11 +26,13 @@ class ProjectCubit extends Cubit<ProjectState> {
     required DeleteProject deleteProject,
     required UpdateProject updateProject,
     required AnalyzeProject analyzeProject,
+    required ExportSelectedClips exportSelectedClips,
   })  : _getAllProjects = getAllProjects,
         _saveProject = saveProject,
         _deleteProject = deleteProject,
         _updateProjectUseCase = updateProject,
         _analyzeProject = analyzeProject,
+        _exportSelectedClips = exportSelectedClips,
         super(const ProjectInitial());
 
   Future<void> loadProjects() async {
@@ -76,30 +80,56 @@ class ProjectCubit extends Cubit<ProjectState> {
 
   Future<void> startAnalysis(Project project) async {
     emit(ProjectAnalyzing(project));
-
     final result = await _analyzeProject(project);
-
     await result.fold(
       (failure) async => emit(ProjectError(failure.message)),
       (analysis) async {
-        final updated = Project(
-          id: project.id,
-          name: project.name,
-          createdAt: project.createdAt,
-          videoPath: project.videoPath,
-          duration: project.duration,
+        final updated = project.copyWith(
+          clips: analysis.clips.map((c) => c.toMap()).toList(),
+          clipsCount: analysis.clips.length,
           status: ProjectStatus.ready,
           lastEdited: DateTime.now(),
-          clipsCount: analysis.clips.length,
-          clipsData: analysis.clips.map((c) => c.toMap()).toList(), // ✅ fixed
         );
+        await _updateProjectUseCase(updated);
+        emit(ProjectAnalysisComplete(updated, analysis));
+        loadProjects(); // ✅ keeps list in sync everywhere else
+      },
+    );
+  }
 
-        final saveResult = await _updateProjectUseCase(updated);
+  // ✅ No ProjectLoading emit here — avoids a spinner flash on every checkbox tap
+  Future<void> toggleClipSelection(Project project, String clipId) async {
+    final selected = List<String>.from(project.selectedClipIds);
+    if (selected.contains(clipId)) {
+      selected.remove(clipId);
+    } else {
+      selected.add(clipId);
+    }
+    final updated = project.copyWith(
+      selectedClipIds: selected,
+      lastEdited: DateTime.now(),
+    );
+    final result = await _updateProjectUseCase(updated);
+    result.fold(
+      (failure) => emit(ProjectError(failure.message)),
+      (_) => loadProjects(),
+    );
+  }
 
-        saveResult.fold(
-          (failure) => emit(ProjectError(failure.message)),
-          (_) => emit(ProjectAnalysisComplete(updated, analysis)),
+  Future<void> exportClips(Project project) async {
+    emit(const ProjectExporting());
+    final result = await _exportSelectedClips(project);
+    await result.fold(
+      (failure) async => emit(ProjectError(failure.message)),
+      (exportedPath) async {
+        final updated = project.copyWith(
+          exportedVideoPath: exportedPath,
+          status: ProjectStatus.ready,
+          lastEdited: DateTime.now(),
         );
+        await _updateProjectUseCase(updated);
+        emit(ProjectExportSuccess(updated, exportedPath));
+        loadProjects();
       },
     );
   }

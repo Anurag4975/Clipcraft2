@@ -9,13 +9,15 @@ import '../../features/projects/domain/usecases/get_all_projects.dart';
 import '../../features/projects/domain/usecases/save_project.dart';
 import '../../features/projects/domain/usecases/delete_project.dart';
 import '../../features/projects/domain/usecases/update_project.dart';
-import '../../features/projects/presentation/cubit/project_cubit.dart';
 import '../../features/projects/domain/usecases/analyze_project.dart';
+import '../../features/projects/domain/usecases/export_selected_clips.dart'; // ✅ new
+import '../../features/projects/presentation/cubit/project_cubit.dart';
+import '../../core/services/ffmpeg_service.dart';
+import '../../features/media_tools/domain/usecases/extract_audio.dart';
 
 final getIt = GetIt.instance;
 
 Future<void> initDependencies(Box<Project> projectBox) async {
-  // Network
   getIt.registerLazySingleton<Dio>(() {
     final dio = Dio(BaseOptions(
       baseUrl: AppConstants.baseUrl,
@@ -26,25 +28,25 @@ Future<void> initDependencies(Box<Project> projectBox) async {
     return dio;
   });
 
-  // Storage — box is already open & typed. DON'T open or delete it here.
   getIt.registerLazySingleton<Box<Project>>(() => projectBox);
 
-  // ─── Projects Feature ───
   getIt.registerLazySingleton<ProjectRepository>(
     () => ProjectRepositoryImpl(getIt<Box<Project>>()),
   );
   getIt.registerLazySingleton(() => GetAllProjects(getIt<ProjectRepository>()));
   getIt.registerLazySingleton(() => SaveProject(getIt<ProjectRepository>()));
   getIt.registerLazySingleton(() => DeleteProject(getIt<ProjectRepository>()));
-  getIt.registerLazySingleton(
-      () => UpdateProject(getIt<ProjectRepository>())); // ✅ added
+  getIt.registerLazySingleton(() => UpdateProject(getIt<ProjectRepository>()));
   getIt.registerLazySingleton(() => AnalyzeProject());
-
+  getIt.registerLazySingleton(() => ExportSelectedClips()); // ✅ new
+  getIt.registerLazySingleton(() => FFmpegService());
+  getIt.registerLazySingleton(() => ExtractAudio(getIt<FFmpegService>()));
   getIt.registerFactory(() => ProjectCubit(
         getAllProjects: getIt<GetAllProjects>(),
         saveProject: getIt<SaveProject>(),
         deleteProject: getIt<DeleteProject>(),
         updateProject: getIt<UpdateProject>(),
-        analyzeProject: getIt<AnalyzeProject>(), // ✅ Pass it
+        analyzeProject: getIt<AnalyzeProject>(),
+        exportSelectedClips: getIt<ExportSelectedClips>(), // ✅ new
       ));
 }

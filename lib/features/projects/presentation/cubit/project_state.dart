@@ -49,3 +49,15 @@ class ProjectAnalysisComplete extends ProjectState {
   @override
   List<Object?> get props => [project, result.clips, result.viralScore];
 }
+
+class ProjectExporting extends ProjectState {
+  const ProjectExporting();
+}
+
+class ProjectExportSuccess extends ProjectState {
+  final Project project;
+  final String exportedPath;
+  const ProjectExportSuccess(this.project, this.exportedPath);
+  @override
+  List<Object?> get props => [project, exportedPath];
+}

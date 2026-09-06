@@ -7,19 +7,33 @@ class ProjectAdapter extends TypeAdapter<Project> {
 
   @override
   Project read(BinaryReader reader) {
+    final id = reader.readString();
+    final name = reader.readString();
+    final videoPathRaw = reader.readString();
+    final duration = Duration(seconds: reader.readInt());
+    final createdAt = DateTime.parse(reader.readString());
+    final lastEditedRaw = reader.readString();
+    final status = ProjectStatus.values[reader.readInt()];
+    final clipsCount = reader.readInt();
+    final clipsRaw = reader.read();
+    final selectedClipIds = reader.readStringList(); // ✅ new
+    final exportedVideoPathRaw = reader.readString(); // ✅ new
+
     return Project(
-      id: reader.readString(),
-      name: reader.readString(),
-      createdAt: DateTime.fromMillisecondsSinceEpoch(reader.readInt()),
-      videoPath: reader.read() as String?,
-      duration: Duration(milliseconds: reader.readInt()),
-      status: ProjectStatus.values[reader.readByte()],
-      lastEdited: reader.readBool()
-          ? DateTime.fromMillisecondsSinceEpoch(reader.readInt())
-          : null,
-      clipsCount: reader.readInt(),
-      // ✅ NEW: Read clipsData list
-      clipsData: (reader.readList() as List).cast<Map>(),
+      id: id,
+      name: name,
+      videoPath: videoPathRaw.isEmpty ? null : videoPathRaw,
+      duration: duration,
+      createdAt: createdAt,
+      lastEdited: lastEditedRaw.isEmpty ? null : DateTime.parse(lastEditedRaw),
+      status: status,
+      clipsCount: clipsCount,
+      clips: clipsRaw is List
+          ? clipsRaw.map((e) => Map<String, dynamic>.from(e as Map)).toList()
+          : const [],
+      selectedClipIds: selectedClipIds,
+      exportedVideoPath:
+          exportedVideoPathRaw.isEmpty ? null : exportedVideoPathRaw,
     );
   }
 
@@ -27,16 +41,14 @@ class ProjectAdapter extends TypeAdapter<Project> {
   void write(BinaryWriter writer, Project obj) {
     writer.writeString(obj.id);
     writer.writeString(obj.name);
-    writer.writeInt(obj.createdAt.millisecondsSinceEpoch);
-    writer.write(obj.videoPath);
-    writer.writeInt(obj.duration.inMilliseconds);
-    writer.writeByte(obj.status.index);
-    writer.writeBool(obj.lastEdited != null);
-    if (obj.lastEdited != null) {
-      writer.writeInt(obj.lastEdited!.millisecondsSinceEpoch);
-    }
+    writer.writeString(obj.videoPath ?? '');
+    writer.writeInt(obj.duration.inSeconds);
+    writer.writeString(obj.createdAt.toIso8601String());
+    writer.writeString(obj.lastEdited?.toIso8601String() ?? '');
+    writer.writeInt(obj.status.index);
     writer.writeInt(obj.clipsCount);
-    // ✅ NEW: Write clipsData list
-    writer.writeList(obj.clipsData);
+    writer.write(obj.clips);
+    writer.writeStringList(obj.selectedClipIds); // ✅ new
+    writer.writeString(obj.exportedVideoPath ?? ''); // ✅ new
   }
 }
