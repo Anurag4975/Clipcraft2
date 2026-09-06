@@ -2,10 +2,10 @@ import 'package:equatable/equatable.dart';
 import 'package:uuid/uuid.dart';
 import 'package:hive/hive.dart';
 
-// ✅ YOUR ACTUAL ENUM — matches your codebase
+// YOUR ACTUAL ENUM
 enum ProjectStatus { editing, analyzing, ready, exporting }
 
-// 🎬 Detected Viral Clip — standalone class
+// 🎬 Detected Viral Clip
 class ViralClip extends Equatable {
   final String id;
   final Duration startAt;
@@ -69,7 +69,7 @@ class Project extends Equatable {
   final String? videoPath;
 
   @HiveField(4)
-  final Duration duration; // ✅ Non-nullable, defaults to Duration.zero
+  final Duration duration;
 
   @HiveField(5)
   final ProjectStatus status;
@@ -80,7 +80,6 @@ class Project extends Equatable {
   @HiveField(7)
   final int clipsCount;
 
-  // ✅ NEW: Store clips as List<Map> — Hive handles primitives easily
   @HiveField(8)
   final List<Map> clipsData;
 
@@ -96,19 +95,38 @@ class Project extends Equatable {
     this.clipsData = const [],
   });
 
-  // ✅ Helper: Create new project
-  factory Project.create({required String name}) {
+  // ✅ FIXED: Added videoPath parameter
+  factory Project.create({required String name, String? videoPath}) {
     return Project(
       id: const Uuid().v4(),
       name: name,
       createdAt: DateTime.now(),
+      videoPath: videoPath,
     );
   }
 
-  // ✅ Helper: Get typed ViralClip list from raw maps
+  // ✅ Helper: Get typed ViralClip list
   List<ViralClip> get clips => clipsData
       .map((m) => ViralClip.fromMap(Map<String, dynamic>.from(m)))
       .toList();
+
+  // ✅ FIXED: Added formattedDuration getter
+  String get formattedDuration {
+    if (duration == Duration.zero) return '--:--';
+    final mins = duration.inMinutes.toString().padLeft(2, '0');
+    final secs = (duration.inSeconds % 60).toString().padLeft(2, '0');
+    return '$mins:$secs';
+  }
+
+  // ✅ FIXED: Added relativeDate getter
+  String get relativeDate {
+    final diff = DateTime.now().difference(createdAt);
+    if (diff.inMinutes < 1) return 'Just now';
+    if (diff.inHours < 1) return '${diff.inMinutes}m ago';
+    if (diff.inDays < 1) return '${diff.inHours}h ago';
+    if (diff.inDays == 1) return 'Yesterday';
+    return '${diff.inDays}d ago';
+  }
 
   @override
   List<Object?> get props => [

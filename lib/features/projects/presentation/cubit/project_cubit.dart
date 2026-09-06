@@ -91,7 +91,7 @@ class ProjectCubit extends Cubit<ProjectState> {
           status: ProjectStatus.ready,
           lastEdited: DateTime.now(),
           clipsCount: analysis.clips.length,
-          clips: analysis.clips.map((c) => c.toMap()).toList(), // ✅ fixed
+          clipsData: analysis.clips.map((c) => c.toMap()).toList(), // ✅ fixed
         );
 
         final saveResult = await _updateProjectUseCase(updated);

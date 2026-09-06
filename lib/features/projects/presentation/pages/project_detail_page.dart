@@ -8,9 +8,9 @@ import 'package:video_player/video_player.dart';
 
 import '../../../../app/theme/app_theme.dart';
 import '../../domain/entities/project.dart';
-import '../../domain/entities/analysis_result.dart';
+import '../../domain/usecases/analyze_project.dart'; // ✅ has AnalysisResult
 import '../cubit/project_cubit.dart';
-import '../cubit/project_state.dart';
+import '../../domain/entities/project.dart';
 
 class ProjectDetailPage extends StatelessWidget {
   final Project project;
