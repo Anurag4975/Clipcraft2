@@ -37,4 +37,7 @@ class AppConstants {
   static const String boxProjects = 'projects_box';
   static const String boxSubscription = 'subscription_box';
   static const String boxSettings = 'settings_box';
+  static const int freeCloudAnalysisLimit = 2;
+  static const int creatorProCloudAnalysisLimit = 15;
+  static const int studioCloudAnalysisLimit = 50;
 }

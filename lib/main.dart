@@ -26,6 +26,8 @@ void main() async {
   final projectBox = await Hive.openBox<Project>(AppConstants.boxProjects);
 
   await initDependencies(projectBox);
+  final subscriptionBox = await Hive.openBox(AppConstants.boxSubscription);
+  await initDependencies(projectBox, subscriptionBox); // update signature
 
   runApp(const ClipCraftApp());
 }

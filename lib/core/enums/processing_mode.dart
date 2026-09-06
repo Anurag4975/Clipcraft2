@@ -1,0 +1,1 @@
+enum ProcessingMode { onDevice, cloud }

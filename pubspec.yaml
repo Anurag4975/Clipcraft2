@@ -15,6 +15,7 @@ dependencies:
   video_player: ^2.9.2
   # 📂 Path Provider - for file system access
   path_provider: ^2.1.0
+  whisper_ggml_plus: ^1.5.2
 
   # State management: helps us manage app state predictably
   flutter_bloc: 8.1.5
