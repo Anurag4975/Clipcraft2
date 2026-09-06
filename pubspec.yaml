@@ -1,0 +1,60 @@
+name: clipcraft
+description: AI-powered mobile video editor
+publish_to: "none"
+version: 0.1.0+1
+
+environment:
+  sdk: ">=3.3.0 <4.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # 📁 File Picker - for selecting videos from device
+  file_picker: ^10.3.10
+  video_player: ^2.9.2
+  # 📂 Path Provider - for file system access
+  path_provider: ^2.1.0
+
+  # State management: helps us manage app state predictably
+  flutter_bloc: 8.1.5
+
+  # Value comparison: makes it easy to compare objects (for state)
+  equatable: 2.0.5
+
+  # Service locator: our "dependency injection" — gives us instances of things
+  get_it: 7.6.7
+
+  # Routing: handles navigation between screens
+  go_router: ^18.0.1
+
+  # Functional programming: gives us Either<Left, Right> for error handling
+  dartz: 0.10.1
+
+  # HTTP client: talks to APIs
+  dio: 5.4.0
+
+  # Local storage: saves data on the device
+  hive: 2.2.3
+  hive_flutter: 1.1.0
+
+  # In-app purchases: handles subscriptions
+  in_app_purchase: 3.1.13
+
+  # Ads: rewarded videos for free users (commented out)
+  # google_mobile_ads: 7.0.0
+
+  # Utilities
+  uuid: 4.3.3 # Generates unique IDs
+  permission_handler: 11.3.0 # Requests camera/storage permissions
+  cached_network_image: 3.3.1 # Loads & caches images from web
+  ffmpeg_kit_flutter_new: ^4.6.2
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: 3.0.0 # Code style rules
+  mocktail: 1.0.3 # For testing (mocks dependencies)
+
+flutter:
+  uses-material-design: true
