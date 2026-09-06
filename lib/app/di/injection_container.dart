@@ -10,6 +10,7 @@ import '../../features/projects/domain/usecases/save_project.dart';
 import '../../features/projects/domain/usecases/delete_project.dart';
 import '../../features/projects/domain/usecases/update_project.dart';
 import '../../features/projects/presentation/cubit/project_cubit.dart';
+import '../../features/projects/domain/usecases/analyze_project.dart';
 
 final getIt = GetIt.instance;
 
@@ -37,11 +38,13 @@ Future<void> initDependencies(Box<Project> projectBox) async {
   getIt.registerLazySingleton(() => DeleteProject(getIt<ProjectRepository>()));
   getIt.registerLazySingleton(
       () => UpdateProject(getIt<ProjectRepository>())); // ✅ added
+  getIt.registerLazySingleton(() => AnalyzeProject());
 
   getIt.registerFactory(() => ProjectCubit(
         getAllProjects: getIt<GetAllProjects>(),
         saveProject: getIt<SaveProject>(),
         deleteProject: getIt<DeleteProject>(),
-        updateProject: getIt<UpdateProject>(), // ✅ added
+        updateProject: getIt<UpdateProject>(),
+        analyzeProject: getIt<AnalyzeProject>(), // ✅ Pass it
       ));
 }
